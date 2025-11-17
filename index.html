@@ -1,228 +1,229 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ASCII Saturn — rotating</title>
+<meta charset="UTF-8" />
+<title>Saturn — Ricardo Risco</title>
 <style>
-  :root{
-    --bg:#0b0f14;
-    --panel:#0f1720;
-    --muted:#9aa7b2;
-  }
-  html,body{height:100%;margin:0;background:var(--bg);color:#e6eef6;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace}
-  .wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:28px;}
-  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 6px 24px rgba(0,0,0,0.6);max-width:1000px;width:100%}
-  .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-  label{font-size:13px;color:var(--muted)}
-  input[type=range]{accent-color:#caa45a}
-  button{background:#1b2430;color:#e6eef6;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
-  button:active{transform:translateY(1px)}
-  pre#screen{margin:0;background:transparent;white-space:pre;line-height:0.95;font-size:12px;overflow:auto;max-height:60vh;padding:12px;border-radius:8px}
-  .help{font-size:13px;color:var(--muted);margin-top:8px}
-  .footer{font-size:12px;color:var(--muted);margin-top:8px;text-align:center}
-  .control-item{display:flex;flex-direction:column;gap:6px}
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #03060a;
+        font-family: sans-serif;
+        color: white;
+    }
+
+    #ui {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 10;
+        background: rgba(0,0,0,0.5);
+        padding: 15px;
+        border-radius: 10px;
+        backdrop-filter: blur(6px);
+    }
+    label { font-size: 14px; }
+
+    #title {
+        position: fixed;
+        top: 50px;
+        right: 50px;
+        font-size: 48px;
+        font-weight: 800;
+        color: #ffd57f;
+        text-shadow: 0 0 15px #ffbe4d;
+        pointer-events: none;
+    }
+
+    #asciiModal {
+        position: fixed;
+        display: none;
+        top: 0; left:0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        z-index: 999;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+    #asciiBox {
+        width: 90%;
+        height: 80%;
+        background: black;
+        border: 2px solid white;
+        overflow: auto;
+        font-family: monospace;
+        white-space: pre;
+        padding: 20px;
+        color: white;
+    }
+    #closeASCII {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #111;
+        border: solid 1px white;
+        color: white;
+        cursor: pointer;
+        border-radius: 5px;
+    }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card" role="region" aria-label="Saturn ASCII animation">
-    <div class="controls" aria-hidden="false">
-      <div class="control-item">
-        <label for="sizeRange">Size (rows) <span id="sizeVal">28</span></label>
-        <input id="sizeRange" type="range" min="14" max="48" value="28">
-      </div>
-      <div class="control-item">
-        <label for="speedRange">Speed (rotation)</label>
-        <input id="speedRange" type="range" min="0.2" max="3.0" step="0.1" value="1.0">
-      </div>
-      <div class="control-item">
-        <label for="charSet">Shading</label>
-        <select id="charSet" title="Choose shading characters">
-          <option value=" .:-=+*#%@">Smooth</option>
-          <option value=" `.^,;:!+xXO0#@">Rough</option>
-          <option value=" .oO@">Blocky</option>
-        </select>
-      </div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <button id="playPause">Pause</button>
-        <button id="resetBtn">Reset</button>
-      </div>
-    </div>
 
-    <pre id="screen" aria-live="off" role="img"></pre>
-    <div class="help">Tip: increase size for smoother planet, increase speed for faster rotation.</div>
-    <div class="footer">ASCII Saturn — simulated x-axis rotation • Use monospace for best results</div>
-  </div>
+<!-- UI CONTROLS -->
+<div id="ui">
+    <label>Number of Rings</label><br>
+    <input id="rings" type="range" min="1" max="8" value="4"><br><br>
+
+    <label>Ring Intensity</label><br>
+    <input id="strength" type="range" min="0.1" max="2" step="0.1" value="1"><br><br>
+
+    <button id="openVideo">Open Reference Video Frame</button>
+    <br><br>
+    <button id="openASCII">Show ASCII Saturn</button>
 </div>
 
+<!-- TITLE -->
+<div id="title">Ricardo Risco</div>
+
+<!-- ASCII MODAL -->
+<div id="asciiModal">
+    <div id="asciiBox">(ASCII Saturn loads here...)<br><br>Loading…</div>
+    <button id="closeASCII">Close</button>
+</div>
+
+<!-- THREE.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+
 <script>
-/*
-  ASCII Saturn animation
-  - Sphere shading based on simple Lambert-like lighting
-  - Rings drawn as ellipse slices with a tilt that changes with time to simulate rotation on planet's x-axis
-  - Controls: size, speed, shading chars, pause/reset
-*/
+/* =============  SCENE + CAMERA =============== */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 5, 16);
 
-(() => {
-  const screen = document.getElementById('screen');
-  const sizeRange = document.getElementById('sizeRange');
-  const speedRange = document.getElementById('speedRange');
-  const playPause = document.getElementById('playPause');
-  const resetBtn = document.getElementById('resetBtn');
-  const charSetSel = document.getElementById('charSet');
-  const sizeVal = document.getElementById('sizeVal');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
 
-  let running = true;
-  let tStart = performance.now();
-  let lastTime = tStart;
+/* =============  LIGHTS =============== */
+const keyLight = new THREE.DirectionalLight(0xffffff, 2);
+keyLight.position.set(5, 2, 5);
+scene.add(keyLight);
 
-  // settings
-  let rows = parseInt(sizeRange.value,10); // vertical resolution
-  let aspect = 2.0; // character width/height ratio compensation
-  let cols = Math.round(rows * aspect * 2.4); // columns — wider to fit rings
-  let speed = parseFloat(speedRange.value); // rotation speed multiplier
-  let shadeChars = charSetSel.value; // gradient characters from light -> dark
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-  sizeRange.addEventListener('input', () => {
-    rows = parseInt(sizeRange.value,10);
-    sizeVal.textContent = rows;
-    cols = Math.round(rows * aspect * 2.4);
-    // reduce flicker by redrawing immediately
-    drawFrame((performance.now()-tStart)/1000 * speed);
-  });
+/* =============  SATURN PLANET =============== */
+const saturnGeo = new THREE.SphereGeometry(4, 64, 64);
+const saturnMat = new THREE.MeshStandardMaterial({
+    color: 0xf5ecd7,
+    metalness: 0.1,
+    roughness: 0.6
+});
+const saturn = new THREE.Mesh(saturnGeo, saturnMat);
+scene.add(saturn);
 
-  speedRange.addEventListener('input', () => {
-    speed = parseFloat(speedRange.value);
-  });
+/* Saturn subtle bands using vertex colors */
+saturnGeo.computeVertexNormals();
+saturnGeo.attributes.position.needsUpdate = true;
 
-  charSetSel.addEventListener('change', () => {
-    shadeChars = charSetSel.value;
-  });
+/* =============  RINGS =============== */
+const ringGroup = new THREE.Group();
+scene.add(ringGroup);
 
-  playPause.addEventListener('click', () => {
-    running = !running;
-    playPause.textContent = running ? 'Pause' : 'Play';
-    if (running) {
-      // resume loop
-      tStart = performance.now() - (lastTime - tStart);
-      requestAnimationFrame(loop);
+function buildRings(count, strength){
+    ringGroup.clear();
+    for(let i=0;i<count;i++){
+        const inner = 4.5 + i*0.5;
+        const outer = inner + 0.4;
+
+        const ringGeo = new THREE.RingGeometry(inner, outer, 128);
+        const ringMat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(`hsl(40, 35%, ${45 + i*4}%)`).multiplyScalar(strength),
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.85
+        });
+
+        const mesh = new THREE.Mesh(ringGeo, ringMat);
+        mesh.rotation.x = Math.PI/2;
+        ringGroup.add(mesh);
     }
-  });
+}
 
-  resetBtn.addEventListener('click', () => {
-    // reset time / params
-    tStart = performance.now();
-    drawFrame(0);
-  });
+buildRings(4,1);
 
-  // helper: map value from a..b to 0..1
-  function norm(x, a, b){ return (x - a) / (b - a); }
+/* =============  EXTRA ORBITING PLANETS =============== */
+const planets = [];
+function createPlanet(radius, dist, speed, color){
+    const geo = new THREE.SphereGeometry(radius,32,32);
+    const mat = new THREE.MeshStandardMaterial({color});
+    const m = new THREE.Mesh(geo,mat);
+    m.userData = {dist, speed, angle:Math.random()*Math.PI*2};
+    scene.add(m);
+    planets.push(m);
+}
 
-  // render single frame at time t (seconds)
-  function drawFrame(t) {
-    // planet geometry
-    const R = 0.9; // normalized planet radius
-    const ringInner = 1.15; // ring inner radius relative to planet radius
-    const ringOuter = 2.0;  // ring outer radius
-    // rotation angle that affects ring tilt to simulate x-axis rotation
-    const ang = t * 0.6 * speed; // base angle; speed multiplies
-    // tilt oscillates between -0.6..+0.6 (radians) to mimic the axis tilt/rotation
-    const tilt = Math.sin(ang) * 0.66;
+/* optional planets */
+createPlanet(0.5, 10, 0.003, 0x88bbff);
+createPlanet(1, 14, 0.0015, 0xffaa88);
+createPlanet(0.7, 18, 0.002, 0x99ffd9);
 
-    // light direction (simple)
-    const L = normalize([0.6, 0.8, 0.5]); // light coming from above-right
+/* =============  USER CONTROLS =============== */
+document.getElementById("rings").oninput = e => {
+    buildRings(Number(e.target.value), Number(document.getElementById("strength").value));
+};
+document.getElementById("strength").oninput = e => {
+    buildRings(Number(document.getElementById("rings").value), Number(e.target.value));
+};
 
-    let out = '';
-    // iterate rows top->bottom
-    for (let yi = 0; yi < rows; yi++) {
-      let y = ( (yi / (rows-1)) * 2 - 1); // -1..+1
-      // increase vertical compression for nicer look
-      for (let xi = 0; xi < cols; xi++) {
-        let x = ((xi / (cols-1)) * 2 - 1) * (cols/rows) * 0.6; // scale to fit
-        // compute distance in planet-centered coords where z is out of screen
-        // sphere check: x^2 + y^2 + z^2 <= R^2  => z = sqrt(R^2 - x^2 - y^2)
-        const d2 = x*x + y*y;
-        let ch = ' ';
-        if (d2 <= R*R) {
-          // point is on planet surface; compute normal
-          const z = Math.sqrt(R*R - d2);
-          const N = normalize([x, y, z]);
-          // simple diffuse:
-          const diffuse = Math.max(0, dot(N, L));
-          // add subtle ambient
-          const amb = 0.12;
-          const val = Math.min(1, amb + diffuse * 0.95);
-          ch = shadeChar(val);
-        } else {
-          // maybe ring? compute ring coordinates in ring plane tilted by 'tilt' around x-axis
-          // rotate the point (x,y,0) by -tilt around x to map to ring plane coordinates:
-          // rotation around x: y' = y*cos - z*sin ; z' = y*sin + z*cos. Here z is 0 for screen plane
-          const yprime = y * Math.cos(tilt) - 0 * Math.sin(tilt);
-          const zprime = y * Math.sin(tilt) + 0 * Math.cos(tilt);
-          // compute radial distance from origin in the ring plane
-          const rplane = Math.sqrt(x*x + zprime*zprime);
-          if (rplane >= ringInner && rplane <= ringOuter) {
-            // further modulate brightness by where within ring thickness and by angle
-            // make the ring partly occluded by planet (simple occlusion test)
-            // if the ring point projects behind the sphere (i.e., zprime^2 + x^2 < R^2 and ring is behind)
-            // we check if the ring is behind the sphere by comparing z depth from ring plane rotation
-            // approximate depth of ring element along viewer z-axis: small negative means behind
-            const behind = ((x*x + y*y) < R*R && Math.cos(tilt) * y < 0);
-            // shade ring based on distance from inner edge
-            const tEdge = (rplane - ringInner) / (ringOuter - ringInner); // 0..1
-            // make rings striped by slight sinusoidal bumps to look natural
-            const stripe = 0.4 + 0.4*Math.sin(rplane*8.0 + ang*3.0 + x*6.0);
-            let brightness = 0.25 + 0.75*(1 - Math.abs(tEdge - 0.5)) * stripe;
-            // dim back rings a bit
-            if (behind) brightness *= 0.45;
-            ch = shadeChar(brightness);
-          } else {
-            ch = ' ';
-          }
-        }
-        out += ch;
-      }
-      out += '\n';
-    }
+/* =============  BUTTON HANDLERS =============== */
+document.getElementById("openVideo").onclick = () => {
+    window.open("24033952-8507-4184-8173-e890f97e714b.png", "_blank");
+};
 
-    screen.textContent = out;
-  }
+document.getElementById("openASCII").onclick = () => {
+    document.getElementById("asciiModal").style.display = "flex";
 
-  // choose a character from shadeChars according to value 0..1 (0 light, 1 dark)
-  function shadeChar(val) {
-    // clamp
-    val = Math.max(0, Math.min(1, val));
-    // reverse order so higher value (bright) picks earlier / lighter char
-    // but many gradients have leading space as first char — detect and handle
-    const g = shadeChars;
-    // If the gradient starts with a space, treat it as the lightest
-    const n = g.length;
-    // pick index: 0 -> lightest, n-1 -> darkest
-    // we want brighter (val closer to 1) to be lighter, so invert:
-    const idx = Math.floor((1 - val) * (n - 1) + 0.0001);
-    return g[Math.max(0, Math.min(n-1, idx))];
-  }
+    fetch("https://raw.githubusercontent.com/busybox11/ascii-saturn/main/saturn_ascii.txt")
+      .then(r => r.text())
+      .then(t => {
+          document.getElementById("asciiBox").textContent = t;
+      })
+      .catch(() => {
+          document.getElementById("asciiBox").textContent = "(ASCII failed to load)";
+      });
+};
 
-  // small vector helpers
-  function dot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
-  function len(a){ return Math.sqrt(dot(a,a)); }
-  function normalize(a){
-    const L = len(a) || 1e-6;
-    return [a[0]/L, a[1]/L, a[2]/L];
-  }
+document.getElementById("closeASCII").onclick = () => {
+    document.getElementById("asciiModal").style.display = "none";
+};
 
-  function loop(now) {
-    lastTime = now;
-    if (!running) return;
-    const t = (now - tStart)/1000;
-    drawFrame(t);
-    requestAnimationFrame(loop);
-  }
+/* =============  ANIMATE =============== */
+function animate(){
+    requestAnimationFrame(animate);
 
-  // draw initial frame
-  drawFrame(0);
-  requestAnimationFrame(loop);
+    /* rotate Saturn */
+    saturn.rotation.y += 0.003;
 
-})();
+    /* tilt rings slowly */
+    ringGroup.rotation.x = Math.sin(Date.now()*0.0004) * 0.35;
+    ringGroup.rotation.y += 0.0015;
+
+    /* orbit planets */
+    planets.forEach(p => {
+        p.userData.angle += p.userData.speed;
+        p.position.set(
+            Math.cos(p.userData.angle)*p.userData.dist,
+            0,
+            Math.sin(p.userData.angle)*p.userData.dist
+        );
+    });
+
+    renderer.render(scene,camera);
+}
+animate();
+
 </script>
+</body>
+</html>
+
